@@ -75,7 +75,7 @@ print('=' * 100)
 resp.close()
 
 current_page = 1  # 当前页
-is_no_data = False  # 判断标志：是否还有数据
+no_data = False  # 判断标志：是否还有数据
 while 1:
     print(f'第{current_page}页')
 
@@ -99,12 +99,12 @@ while 1:
     for i in json.loads(resp2.text)['data']['table']['dataSource']:
         itemId_list.append(i['itemId'])
     if len(itemId_list) == 0:
-        if is_no_data:  # 连续两次数据为0才会执行，证明已没有数据
+        if no_data:  # 连续两次数据为0才会执行，证明已没有数据
             print('暂无数据hhh')
             break
         print('已是最后一页hhh')
         current_page = 1
-        is_no_data = True
+        no_data = True
         continue
     print(itemId_list)
     resp2.close()
@@ -126,4 +126,4 @@ while 1:
         time.sleep(1)
     print('=' * 100)
     resp3.close()
-    is_no_data = False
+    no_data = False
