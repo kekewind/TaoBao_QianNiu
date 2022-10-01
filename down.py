@@ -1,26 +1,23 @@
 """
-@Author: wfyr
-@Date: 2022-2-13
-@Description: 下架商品
+下架商品
 """
-
-# selenium.common.exceptions.InvalidCookieDomainException: Message: invalid cookie domain: Cookie 'domain' mismatch，检查一下domain的域名是否一致
-# 不登陆无法访问的页面：先录入cookies，再打开登陆后的网址
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 import time
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.action_chains import ActionChains
-import sys
-import winsound
+from selenium.webdriver.common.action_chains import ActionChains  # .perform()
+import requests
+import json
+
 
 def list_to_json(cookie):  # 将selenium获取的cookie列表整理成字典
     cookie_json = {}
     for i in cookie:
         cookie_json[i['name']] = i['value']
     return cookie_json
+
 
 def json_to_string(cookies):  # 将cookies字典整理成字符串
     cookie = ''
@@ -29,175 +26,104 @@ def json_to_string(cookies):  # 将cookies字典整理成字符串
     return cookie
 
 
-def main():
-    # yn = int(input('1、有头\n2、无头\n选择：'))
-    yn = 1
-    if yn != 1 and yn != 2:
-        print('无效输入')
-        sys.exit()
+def list_to_str(_list):  # 将列表转换为参数需要的字符串格式
+    s = '['
+    for i in _list:
+        s += '"' + i + '"' + ','
+    s = s[:-1] + ']'
+    return s
 
-    options = Options()
-    options.add_argument('--disable-blink-features=AutomationControlled')
-    driver = webdriver.Chrome(options=options)
-    driver.maximize_window()
-    driver.get('https://myseller.taobao.com/')  # 登录
 
-    input("按任意键开始：")
-    cookies = driver.get_cookies()
-    print(cookies)
-    print(json_to_string(list_to_json(cookies)))
-    num = 50  # 下架多少次刷新一次，不能大于50
+uid = ''  # 账号
+pwd = ''  # 密码
 
-    if yn == 1:
-        pass
-    elif yn == 2:  # 无头
-        cookies = driver.get_cookies()
-        driver.quit()
+# selenium获取cookie
+options = Options()
+options.add_argument('--disable-blink-features=AutomationControlled')
+driver = webdriver.Chrome(options=options)
+driver.maximize_window()
+driver.get('https://myseller.taobao.com/')  # 登录页面
+time.sleep(1)
 
-        options.add_argument('--headless')
-        options.add_argument('--disable-gpu')  # gpu显卡
-        driver = webdriver.Chrome(options=options)
-        driver.maximize_window()
-        driver.get('https://myseller.taobao.com/home.htm/QnworkbenchHome/')
-        for cookie in cookies:
-            cookie['domain'] = '.taobao.com'
-        for cookie in cookies:
-            driver.add_cookie(cookie)
-        # 刷新页面
-        driver.get('https://myseller.taobao.com/home.htm/QnworkbenchHome/')
-        time.sleep(2)
+iframe = driver.find_element(By.ID, 'alibaba-login-box')
+driver.switch_to.frame(iframe)
+driver.find_element(By.ID, 'fm-login-id').send_keys(uid, Keys.TAB, pwd, Keys.ENTER)  # 输入账号密码登录，第一次登录需要手机验证码
+driver.switch_to.default_content()
 
-    driver.get(
-        'https://item.manager.taobao.com/taobao/manager/render.htm?tab=on_sale&table.sort.startDate_m=desc')  # 出售中的宝贝
-    time.sleep(2)
-    try:
-        div = driver.find_element(By.CLASS_NAME, 'introjs-tooltipReferenceLayer')
-        div.find_element(By.XPATH, './div/div[5]/a').click()  # 知道了
-        time.sleep(2)
-    except:
-        print('没有按钮')
-    driver.execute_script("var q=document.documentElement.scrollTop=400")
+# 如果有手机验证码或滑块验证码要手动过验证码之后，在主页面的时候才能继续运行程序
+input("按任意键开始：")
+cookies = driver.get_cookies()
+cookie = json_to_string(list_to_json(cookies))
+print(cookie)
+print('=' * 100)
 
-    n = 1
-    while 1:
-        while 1:
-            try:
-                driver.find_element(By.XPATH,  # 会报错
-                                    '//*[@id="root"]/div/div/div[5]/div/div[1]/div/table/tbody/tr/th[1]/div/label/input').click()  # 点击全选
-                break
-            except:
-                time.sleep(0.5)  # 1次
-                pass
+ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.115 Safari/537.36'
+
+# 获取x-xsrf-token，从XSRF-TOKEN
+url = 'https://item.upload.taobao.com/taobao/manager/render.htm?tab=on_sale&StringUtils=class+org.apache.commons.lang3.StringUtils&smart_publish_version_switch=0.4.44'
+headers = {
+    'cookie': cookie,
+    'user-agent': ua
+}
+resp = requests.get(url, headers=headers)
+print(resp)
+# print(resp.text)
+# print(resp.headers)
+set_cookie = requests.utils.dict_from_cookiejar(resp.cookies)  # 从响应头整理出set-cookie
+print(set_cookie)
+print('=' * 100)
+resp.close()
+
+current_page = 1  # 当前页
+is_no_data = False  # 判断标志：是否还有数据
+while 1:
+    print(f'第{current_page}页')
+
+    # 获取一页的itemId
+    url2 = 'https://item.upload.taobao.com/taobao/manager/table.htm'
+    headers2 = {
+        'cookie': cookie + f'XSRF-TOKEN={set_cookie["XSRF-TOKEN"]}',
+        'referer': f'https://item.upload.taobao.com/taobao/manager/render.htm?StringUtils=class%20org.apache.commons.lang3.StringUtils&pagination.current={current_page}&pagination.pageSize=20&smart_publish_version_switch=0.4.44&tab=on_sale',
+        'user-agent': ua,
+        'x-xsrf-token': set_cookie["XSRF-TOKEN"]
+    }
+    # current为请求的页码
+    data2 = {
+        'jsonBody': '{"filter": {}, "pagination": {"current": ' + str(current_page) + ', "pageSize": 20}, "table": {"sort": {}}, "tab": "on_sale"}'
+    }
+    resp2 = requests.post(url2, headers=headers2, data=data2)
+    print(resp2)
+    # print(resp2.text)
+    # print(resp2.headers)
+    itemId_list = []
+    for i in json.loads(resp2.text)['data']['table']['dataSource']:
+        itemId_list.append(i['itemId'])
+    if len(itemId_list) == 0:
+        if is_no_data:  # 连续两次数据为0才会执行，证明已没有数据
+            print('暂无数据hhh')
+            break
+        print('已是最后一页hhh')
+        current_page = 1
+        is_no_data = True
+        continue
+    print(itemId_list)
+    resp2.close()
+
+    # 下架商品
+    url3 = 'https://item.upload.taobao.com/taobao/manager/batchFastEdit.htm?optType=batchDownShelf&action=submit'
+    data3 = {
+        'jsonBody': '{"auctionids":' + list_to_str(itemId_list) + '}'
+    }
+    # 请求频繁会出现“亲~人太多，被挤爆了！”
+    resp3 = requests.post(url3, headers=headers2, data=data3)
+    print(resp3)
+    print(resp3.text)
+    if '亲~人太多，被挤爆了！' in resp3.text:
+        print('亲~人太多，被挤爆了！hhh')
+        time.sleep(5)
+    else:  # 成功下架
+        current_page += 1
         time.sleep(1)
-
-        try:
-            bts = driver.find_elements(By.XPATH,
-                                       '/html/body/div[3]/div/div[1]/div/div/div/div/div/div/div[4]/div/div/div[1]/button')
-            for bt in bts:
-                if bt.text == '批量下架':
-                    bt.click()  # 点击批量下架
-            time.sleep(1)
-        except:
-            driver.refresh()
-            print('已刷新')
-            time.sleep(10)
-            driver.find_element(By.XPATH,
-                                '//*[@id="root"]/div/div/div[5]/div/div[1]/div/table/tbody/tr/th[1]/div/label/input').click()  # 全选
-            bts = driver.find_elements(By.XPATH,
-                                       '/html/body/div[3]/div/div[1]/div/div/div/div/div/div/div[4]/div/div/div[1]/button')
-            for bt in bts:
-                if bt.text == '批量下架':
-                    bt.click()  # 点击批量下架
-            time.sleep(1)
-
-        try:
-            driver.find_element(By.XPATH, '/html/body/div[9]/div/div[2]/div[3]/button').click()  # 点击确认；网页小崩这里会报错
-        except:
-            driver.refresh()
-            print('已刷新2')
-            time.sleep(10)
-            driver.find_element(By.XPATH,
-                                '//*[@id="root"]/div/div/div[5]/div/div[1]/div/table/tbody/tr/th[1]/div/label/input').click()  # 全选
-            bts = driver.find_elements(By.XPATH,
-                                       '/html/body/div[3]/div/div[1]/div/div/div/div/div/div/div[4]/div/div/div[1]/button')
-            for bt in bts:
-                if bt.text == '批量下架':
-                    bt.click()  # 点击批量下架
-            time.sleep(1)
-            driver.find_element(By.XPATH, '/html/body/div[9]/div/div[2]/div[3]/button').click()  # 点击确认
-        print(f'批量下架{n}次')
-
-        n1 = 1
-        while 1:
-            if n1 > 10:
-                break
-            try:
-                driver.find_element(By.XPATH,
-                                    '//*[@id="root"]/div/div/div[5]/div/div[1]/div/table/tbody/tr/th[1]/div/label/input').click()  # 等待点击全选
-                break
-            except:
-
-                while True:
-                    try:
-                        driver.find_element(By.XPATH, '/html/body/div[7]/div[2]/iframe')
-                        print('出现滑块验证')
-                        winsound.Beep(500, 2000)
-                        time.sleep(5)
-                    except:
-                        break
-
-                time.sleep(1)  # 5、6次
-                pass
-            n1 += 1
-        time.sleep(1)
-
-        try:
-            # 判断商品数量是否为0
-            if driver.find_element(By.XPATH, '//*[@id="list-pagination-top-total"]').text == '0':
-                print("商品数量为0，正在刷新页面...")
-                driver.get(
-                    'https://item.manager.taobao.com/taobao/manager/render.htm?tab=on_sale&table.sort.startDate_m=desc')  # 出售中的宝贝
-                time.sleep(2)
-                driver.execute_script("var q=document.documentElement.scrollTop=400")
-                if driver.find_element(By.XPATH, '//*[@id="list-pagination-top-total"]').text == '0':
-                    print('\n下架完成')
-                    break
-
-            # 判断页数是否相等
-            a, b = driver.find_element(By.XPATH, '//*[@id="pagination-toolbar"]/div[2]/div/span').text.split("/")
-            if a == b:
-                driver.get(
-                    'https://item.manager.taobao.com/taobao/manager/render.htm?tab=on_sale&table.sort.startDate_m=desc')  # 出售中的宝贝
-                time.sleep(2)
-                driver.execute_script("var q=document.documentElement.scrollTop=400")
-                continue
-        except:
-            pass
-
-        if n % num == 0:
-            driver.refresh()
-            print('网页已刷新')
-            time.sleep(8)
-
-        # button[1]上一页，button[2]下一页
-        try:  # 此处会出现验证码
-            driver.find_element(By.XPATH, '//*[@id="pagination-toolbar"]/div[2]/div/button[2]').click()  # 点击下一页
-        except:
-            driver.refresh()
-            print('已刷新3')
-            time.sleep(2)
-            driver.find_element(By.XPATH, '//*[@id="pagination-toolbar"]/div[2]/div/button[2]').click()  # 点击下一页
-        time.sleep(1)
-        n += 1
-
-    input('\n已完成，按任意键退出：')
-
-
-if __name__ == '__main__':
-    main()
-
-# 纪博严:产品上架
-# qwe123456
-
-# if driver.find_element(By.XPATH, '/html/body/div[9]/div/div[2]/div[2]/span').text == '亲，您的操作速度太快了，请您稍等一会儿再试':
-# if '查看详情' in driver.find_element(By.XPATH, '//*[@id="root"]/div/div/div[5]').text:
+    print('=' * 100)
+    resp3.close()
+    is_no_data = False
