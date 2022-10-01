@@ -95,8 +95,10 @@ while 1:
     print(resp2)
     # print(resp2.text)
     # print(resp2.headers)
+    resp2_json = json.loads(resp2.text)
+    print(f"总数：{resp2_json['data']['pagination']['total']}，共{math.ceil(int(resp2_json['data']['pagination']['total']) / int(resp2_json['data']['pagination']['pageSize']))}页")
     itemId_list = []
-    for i in json.loads(resp2.text)['data']['table']['dataSource']:
+    for i in resp2_json['data']['table']['dataSource']:
         itemId_list.append(i['itemId'])
     if len(itemId_list) == 0:
         if no_data:  # 连续两次数据为0才会执行，证明已没有数据
@@ -121,7 +123,7 @@ while 1:
     if '亲~人太多，被挤爆了！' in resp3.text:
         print('亲~人太多，被挤爆了！hhh')
         time.sleep(5)
-    else:  # 成功下架
+    else:  # 下架成功
         current_page += 1
         time.sleep(1)
     print('=' * 100)
