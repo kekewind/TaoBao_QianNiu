@@ -1,20 +1,12 @@
 """
-@Author: wfyr
-@Date: 2022-10-1
-@Description: 上下架商品
-速度：600页/小时，相比上个网页自动化的程序，速度提升了20%
-每次最多下架20个商品
-一个账号不能多开，但是一台电脑可以开好几个账号，开好几个账号的话会多被限制几十秒
+上下架商品
 """
-
-# jsonBody参数的值为字典，要转换为字符串
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 import time
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.action_chains import ActionChains  # .perform()
 import requests
 import json
 import math
@@ -64,8 +56,8 @@ def get_on_sale_data():  # 获取出售中的数据总量
     return total
 
 
-# uid = 'sinnyqiu:产品管理'
-# pwd = 'qwe123456'
+# uid = ''
+# pwd = ''
 
 options = Options()
 options.add_argument('--disable-blink-features=AutomationControlled')
